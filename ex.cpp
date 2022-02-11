@@ -54,6 +54,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <chrono>
 
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -487,6 +488,8 @@ do_read_JPEG_file(struct jpeg_decompress_struct *cinfo, const char *in_filename)
  */
 
 
+typedef std::chrono::system_clock chrono_clock;
+
 int main(void) {
   // image_width = 1920;
   // image_height = 1080;
@@ -499,45 +502,54 @@ int main(void) {
   // }
 
 
-  struct timespec start;
-  struct timespec end;
+  chrono_clock::time_point start;
+  chrono_clock::time_point end;
+  long time_us;
   
   std::ofstream datafile;
-  datafile.open("./data/rst.csv");
-  datafile << "file,pixel,size,out_size,time\n";
+  datafile.open("./data/no_rst.csv");
+  datafile << "file,pixel,size,out_size,enc_time,dec_time\n";
 
   
-  for (const auto & entry : std::filesystem::directory_iterator("./data/image_source/")) {
-    std::string in_filename = entry.path().string();
-    std::string in_filestem = entry.path().stem().string(); 
-    std::string out_filename = "./data/" + in_filestem + "_out.jpg";
-    std::uintmax_t size = std::filesystem::file_size(in_filename);
+  for (const auto & entry : std::filesystem::directory_iterator("/home/kichang/Downloads/Flickr2K/Flickr2K_HR/")) {
+    // Encoding
+    std::string enc_in_filename = entry.path().string();
+    std::string enc_in_filestem = entry.path().stem().string(); 
+    std::string enc_out_filename = "./data/" + enc_in_filestem + "_out.jpg";
+    std::uintmax_t size = std::filesystem::file_size(enc_in_filename);
 
-    in_image_buffer = stbi_load(in_filename.c_str(), &image_width, &image_height, &image_components, 0);
-    printf("Image %s size: %dx%dx%d (%ld bytes)\n", in_filename.c_str(), image_width, image_height, image_components, size);
+    in_image_buffer = stbi_load(enc_in_filename.c_str(), &image_width, &image_height, &image_components, 0);
+    printf("Image %s size: %dx%dx%d (%ld bytes)\n", enc_in_filename.c_str(), image_width, image_height, image_components, size);
     
-    clock_gettime(CLOCK_REALTIME, &start);
-    write_JPEG_file(out_filename.c_str(), 75, 1, 0);
-    clock_gettime(CLOCK_REALTIME, &end);
-
-    std::uintmax_t out_size = std::filesystem::file_size(out_filename);
-
-    long time_us = (end.tv_nsec-start.tv_nsec) / 1000;
-    printf("encoding time: %ld %ld\n", end.tv_sec-start.tv_sec, time_us);
-
-    datafile << in_filestem << "," << image_width*image_height << "," << size << "," << out_size << "," << time_us << "\n";
+    start = chrono_clock::now();
+    write_JPEG_file(enc_out_filename.c_str(), 75, 0, 0);
+    end = chrono_clock::now();
+    time_us = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
     stbi_image_free(in_image_buffer);
+
+    std::uintmax_t out_size = std::filesystem::file_size(enc_out_filename);
+
+    printf("encoding time: %ld\n", time_us);
+    datafile << enc_in_filestem << "," << image_width*image_height << "," << size << "," << out_size << "," << time_us << ",";
+
+
+    // Decoding
+    out_image_buffer = (JSAMPLE *) malloc(sizeof(JSAMPLE) * image_width * (image_height) * image_components); // rgb
+    start = chrono_clock::now();
+    read_JPEG_file(enc_out_filename.c_str());
+    end = chrono_clock::now();
+    time_us = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
+    free(out_image_buffer);
+
+    // stbi_write_bmp("decoded.bmp", image_width, image_height, image_components, out_image_buffer);
+
+    printf("decoding time: %ld\n", time_us);
+    datafile << time_us << "\n";
+
   }
 
-  out_image_buffer = (JSAMPLE *) malloc(sizeof(JSAMPLE) * image_width * (image_height) * image_components); // rgb
-  clock_gettime(CLOCK_REALTIME, &start);
-  read_JPEG_file("encoded.jpg");
-  clock_gettime(CLOCK_REALTIME, &end);
-  printf("decoding time: %ld %ld\n", end.tv_sec-start.tv_sec, end.tv_nsec-start.tv_nsec);
-  stbi_write_bmp("decoded.bmp", image_width, image_height, image_components, out_image_buffer);
-  free(out_image_buffer);
 
-  datafile.close();
+
 
   return 0;
 }
