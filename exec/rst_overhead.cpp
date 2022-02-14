@@ -507,7 +507,7 @@ int main(void) {
   long time_us;
   
   std::ofstream datafile;
-  datafile.open("./data/no_rst.csv");
+  datafile.open("../data/no_rst.csv");
   datafile << "file,pixel,size,out_size,enc_time,dec_time\n";
 
   
@@ -515,7 +515,7 @@ int main(void) {
     // Encoding
     std::string enc_in_filename = entry.path().string();
     std::string enc_in_filestem = entry.path().stem().string(); 
-    std::string enc_out_filename = "./data/" + enc_in_filestem + "_out.jpg";
+    std::string enc_out_filename = "../data/" + enc_in_filestem + "_out.jpg";
     std::uintmax_t size = std::filesystem::file_size(enc_in_filename);
 
     in_image_buffer = stbi_load(enc_in_filename.c_str(), &image_width, &image_height, &image_components, 0);
